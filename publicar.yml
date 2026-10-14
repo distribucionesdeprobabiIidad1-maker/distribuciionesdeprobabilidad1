@@ -1,0 +1,54 @@
+name: Preparar y publicar calculadora
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  preparar-y-publicar:
+    # El commit automático de los HTML no debe generar otro ciclo de trabajo.
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Descargar repositorio nuevo
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Copiar y adaptar los dos HTML originales
+        run: python scripts/generar.py
+      - name: Guardar los tres archivos en este repositorio
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- index.html "Distribuciones de probabilidad.html" README.md
+          if ! git diff --cached --quiet; then
+            git commit -m "Agregar calculadora sin registro de salidas"
+            git push origin HEAD:main
+          fi
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+      - name: Subir sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Publicar sitio
+        id: deployment
+        uses: actions/deploy-pages@v4
